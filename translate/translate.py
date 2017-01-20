@@ -1,9 +1,11 @@
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 import time
 import re
 import sys
 
-import http.client
+from http.client import HTTPConnection
+from contextlib import closing
 import hashlib
 import urllib
 import random
@@ -27,7 +29,7 @@ class StringLine(object):
 		self.isTranslated = isTranslated
 
 
-def trans(query):
+def trans(query,fromLanguage,toLanguage):
 	appid = '20151113000005349'
 	secretKey = 'osubCEzlGjzvw8qdQc41'
 
@@ -35,8 +37,10 @@ def trans(query):
 	myurl = '/api/trans/vip/translate'
 
 	q = query
-	fromLang = 'zh'
-	toLang = 'cht'
+	# 'zh'
+	fromLang = fromLanguage
+	# 'cht'
+	toLang = toLanguage
 	salt = random.randint(32768, 65536)
 
 	sign = appid+q+str(salt)+secretKey
@@ -45,17 +49,22 @@ def trans(query):
 	sign = m1.hexdigest()
 	myurl = myurl+'?appid='+appid+'&q='+urllib.parse.quote(q)+'&from='+fromLang+'&to='+toLang+'&salt='+str(salt)+'&sign='+sign
 	 
-	try:
-	    httpClient = http.client.HTTPConnection('api.fanyi.baidu.com')
-	    httpClient.request('GET', myurl)
-	    #response是HTTPResponse对象
-	    response = httpClient.getresponse()
-	    return response.read().decode("unicode_escape")
-	except Exception as e:
-	    print(e)
-	finally:
-	    if httpClient:
-	        httpClient.close()
+	# try:
+	#     httpClient = http.client.HTTPConnection('api.fanyi.baidu.com')
+	#     httpClient.request('GET', myurl)
+	#     #response是HTTPResponse对象
+	#     response = httpClient.getresponse()
+	#     return response.read().decode("unicode_escape")
+	# except Exception as e:
+	#     print(e)
+	# finally:
+	#     if httpClient:
+	#         httpClient.close()
+
+	with closing(HTTPConnection('api.fanyi.baidu.com')) as conn: 
+		conn.request('GET', myurl)
+		response = conn.getresponse()
+		return response.read().decode("unicode_escape")
 
 
 def other():
@@ -88,56 +97,58 @@ def readFile(fileName):
 	for line in content:
 		m = pattern.search(line)
 		if m:
-			outFile.write("hahaha" + ": " + m.group('value'))
+			outFile.write("read" + ": " + m.group('value'))
 			outFile.write('\n')
 		else:
 			outFile.write('\n')
 
 
 def readFileToDict(fileName):
-	inFile = open(fileName,"r",encoding="utf-8")
 	dict = {}
 	regex = '\s*<string.+name\s*=\s*"(?P<name>[^"]+("\s*product\s*=\s*"(?P<product>[^"]+))?)"[^>]*>(?P<value>.*)</string'
 	pattern = re.compile(regex, re.S)
 
-	read = inFile.readline()
-	while read:
-		if 'string' in read:
-			while '</string' not in read:
-				read += inFile.readline()
-			m = pattern.match(read)
-			if m:
-				dict[m.group('name')] = read
-		read = inFile.readline()
+	with open(fileName,"r",encoding="utf-8") as f:
+		read = f.readline()
+		while read:
+			if 'string' in read:
+				while '</string' not in read:
+					read += f.readline()
+				m = pattern.match(read)
+				if m:
+					dict[m.group('name')] = read
+			read = f.readline()
+
 	return dict
 
 
 def readFileToArray(fileName):
-	inFile = open(fileName,"r",encoding="utf-8")
 	array = []
 	lineNumber = 0
 	regex = '\s*<string.+name\s*=\s*"(?P<name>[^"]+("\s*product\s*=\s*"(?P<product>[^"]+))?)("\s*msgid\s*=\s*"(?P<msgid>[^"]+))?"[^>]*>(?P<value>.*)</string'
 	pattern = re.compile(regex, re.S)
 
-	read = inFile.readline()
-	while read:
-		lineNumber += 1
-		temp = 0
-		if 'string' in read:
-			while '</string' not in read:
-				read += inFile.readline()
-				temp += 1
-			m = pattern.match(read)
-			if m:
-				if m.group('msgid'):
-					msgid = m.group('msgid')
-				else:
-					msgid = ''
-				array.append(StringLine(m.group('name'), msgid, m.group('value'),lineNumber,False))
-			lineNumber += temp
-		else:
-			array.append(StringLine('UnknownString','',read,lineNumber,True))
-		read = inFile.readline()
+	with open(fileName,"r",encoding="utf-8") as f:
+		read = f.readline()
+		while read:
+			lineNumber += 1
+			temp = 0
+			if 'string' in read:
+				while '</string' not in read:
+					read += f.readline()
+					temp += 1
+				m = pattern.match(read)
+				if m:
+					if m.group('msgid'):
+						msgid = m.group('msgid')
+					else:
+						msgid = ''
+					array.append(StringLine(m.group('name'), msgid, m.group('value'),lineNumber,False))
+				lineNumber += temp
+			else:
+				array.append(StringLine('UnknownString','',read.replace('\n',''),lineNumber,True))
+			read = f.readline()
+
 	return array
 
 
@@ -153,24 +164,26 @@ def writeToFile(fileName, array, result, printLine):
 
 	if printLine:
 		for line in array:
-			print('line: ' + str(line.lineNumber) + '    key: ' + line.key + '    value: ' + line.value)
-
+			# print('line: ' + str(line.lineNumber) + '    key: ' + line.key + '    value: ' + line.value.replace('\n',''))
+			print('line:%-4d key: %s    value: %s' %(line.lineNumber,line.key,line.value))
 	preName = fileName.split('.xml')[0] + '_'
 	tamp = time.strftime('%Y%m%d_%H%M%S')
 	outFilename = preName + tamp + ".xml"
-	outFile = open(outFilename, "w", encoding="utf-8")
+
 	print('结果写入文件: ' + outFilename + '\n')
-	for line in array:
-		if line.key in 'UnknownString':
-			outFile.write(line.value)
-		else:
-			if len(line.msgid) > 0:
-				outFile.write('    <string name="%s" msgid="%s">%s</string>\n' %(line.key, line.msgid, line.value))
+	# outFile = open(outFilename, "w", encoding="utf-8")
+	with open(outFilename, "w", encoding="utf-8") as f:
+		for line in array:
+			if line.key in 'UnknownString':
+				f.write(line.value)
 			else:
-				outFile.write('    <string name="%s">%s</string>\n' %(line.key, line.value))
+				if len(line.msgid) > 0:
+					f.write('    <string name="%s" msgid="%s">%s</string>\n' %(line.key, line.msgid, line.value))
+				else:
+					f.write('    <string name="%s">%s</string>\n' %(line.key, line.value))
 
 
-def translate(fileName):
+def translate(fileName,fromLang,toLang):
 	array = readFileToArray(fileName)
 	transArray = []
 	index = 0
@@ -179,19 +192,19 @@ def translate(fileName):
 			transArray.append(str(index) + '@' + line.value)
 		index += 1
 		continue
+	print('需翻译行数: ' + str(len(transArray)) + '\n')
 	transStr = ''
 	for i in range(len(transArray)-1):
 		transStr += transArray[i] + '\n'
-	transStr += transArray[-1]
-	print(transStr)
-	print('需翻译行数: ' + str(len(transArray)) + '\n')
-	result = trans(transStr)
-	print(result)
-
+	if len(transArray) > 0:
+		transStr += transArray[-1]
+	# print(transStr)
+	result = trans(transStr,fromLang,toLang)
+	# print(result)
 	writeToFile(fileName, array, result, True)
 
 
-def translateAfterCompare(file1,file2):
+def translateAfterCompare(file1,file2,fromLang,toLang):
 	print('对比文件: ' + file2 + '\n')
 	array = readFileToArray(file1)
 	dict = readFileToDict(file2)
@@ -215,8 +228,9 @@ def translateAfterCompare(file1,file2):
 		transStr += transArray[i] + '\n'
 	if len(transArray) > 0:
 		transStr += transArray[-1] 
-	result = trans(transStr)
+	result = trans(transStr,fromLang,toLang)
 	# print(result)
+
 	print('从对比文件中插入行数: ' + str(len(dict)) + '\n')
 	for key in dict.keys():
 		array.append(StringLine('UnknownString','',dict[key],0,True))
@@ -225,14 +239,34 @@ def translateAfterCompare(file1,file2):
 
 
 if __name__ == '__main__':
-	if 'linux2' in sys.platform:
-		file =  "/home/xionghg/test/translate/string.xml"
+	# 预设参数
+	if 'linux' in sys.platform:
 		# basefile = '/home/xionghg/SharedFolder/workarea/translate/branch_oversea_pvt_Amigo_SystemManager_AndroidM_PowerDev_V3.0.9_rel/res/values-zh-rTW/'
 		# basefile = '/home/xionghg/SharedFolder/workarea/7558/gionee_packages_apk_amigo_4.0/mtk/packages_6.0/services/Telephony_mt6755c/res/values-zh-rCN/'
+		basefile = '/home/xionghg/test/translate/'
+		file = basefile+'strings.xml'
+		file2 = basefile+'strings2.xml'
 	if 'win32' in sys.platform:
 		file = "D:\strings.xml"
-	print('待翻译文件: ' + file + '\n')
+	fromLang = 'zh'
+	toLang = 'cht'
 	choice = 6
+
+	# 读取命令行参数
+	if len(sys.argv) > 3:
+		print('读取命令行参数1')
+		fromLang = sys.argv[1]
+		toLang = sys.argv[2]
+		file = sys.argv[3]
+		choice = 5
+	if len(sys.argv) == 5:
+		print('读取命令行参数2')
+		file2 = sys.argv[4]
+		choice = 6
+	# TODO 支持相对路径
+	
+	print('待翻译文件: ' + file + '\n')
+
 	if choice == 1:
 		readFile(file)
 	if choice == 2:
@@ -246,11 +280,8 @@ if __name__ == '__main__':
 	if choice == 4:
 		other()
 	if choice == 5:
-		translate(file)
+		translate(file,fromLang,toLang)
 	if choice == 6:
-		basefile = '/home/xionghg/test/translate/'
-		file = basefile+'strings.xml'
-		file2 = basefile+'strings2.xml'
-		translateAfterCompare(file,file2)
+		translateAfterCompare(file,file2,fromLang,toLang)
 
 
