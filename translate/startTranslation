@@ -1,0 +1,125 @@
+#!/bin/bash
+savePath=~/test/translate2
+mkdir -p $savePath
+basePath=`pwd`
+sourceFile=~/test/translate/strings.xml
+compareFile=~/test/translate/strings2.xml
+defCompareFile=0
+fromLang=zh
+toLang=cht
+
+make_sure_script_exists(){
+	# cd "$savePath"
+	# files=`ls $savePath`
+	# echo ${files[*]}
+	# cd
+
+	# find out whether translate.py exists or not
+	cd $savePath
+	flag=0
+	for file in `ls`; do
+		# echo $file
+		if [[ $file == translate.py ]]; then
+			echo "Find translate.py in $savePath"
+			flag=1
+			break
+		fi
+	done
+
+	# download translate.py if not exist
+	if [[ flag -eq 0 ]]; then
+		echo "translate.py脚本不存在,开始下载"
+		git clone https://github.com/xionghg/python.git
+		cp $savePath/python/translate/translate.py $savePath
+		rm -rf python
+		echo "translate.py已下载至 $savePath"
+	fi
+}
+
+usage(){
+printf "
+usage: ./getStarted -s arg1 -c arg2 -f arg3 -t arg4 
+    Options:
+        -s, --source      : 源文件
+        -c, --compare     : 对比文件
+        -f, --from        : 源文件语言
+        -t, --to          : 翻译后语言
+        -h, --help        : 使用帮助
+    如果不指定，将使用默认值。
+    当前默认值: 
+        源文件: ~/test/translate/strings.xml
+        源文件语言: zh
+        翻译后语言: cht
+建议根据项目需求直接修改该脚本下fromLang、toLang的默认值\n
+"
+}
+
+read_args(){
+	count=0
+	for args in "$@"; do
+	    array[$count]=$args
+	    let count++
+	done
+
+	# let count--
+	# for i in $( seq 0 $count ); do
+	#     echo ${array[$i]}
+	# done
+
+	k=0
+	while [ ${array[$k]} ]; do
+		case ${array[$k]} in
+			-s|--source)
+			    let k++
+			    sourceFile=${array[$k]}
+			    ;;
+			-c|--compare)
+				let k++
+			    compareFile=${array[$k]}
+			    defCompareFile=1
+			    ;;
+			-f|--from)
+			    let k++
+			    fromLang=${array[$k]}
+			    ;;
+			-t|--to)
+				let k++
+			    toLang=${array[$k]}
+			    ;;
+			-h|--help)
+				usage
+			    exit 0
+			    ;;
+			*)
+				echo "未知参数，输入 -h/--help 查看帮助"
+			    exit 0
+			    ;;
+	    esac
+		let k++
+	done	
+}
+
+main(){
+	read_args "$@"
+	make_sure_script_exists
+	
+	# 调用translate.py脚本
+	if [[ defCompareFile -eq 0 ]]; then
+		echo "未指定对比文件，将翻译所有字符串，参数如下: "
+		echo "源 文 件: $sourceFile"
+		echo "源文件语言: $fromLang"
+		echo "翻译后语言: $toLang"
+		python3 $savePath/translate.py $fromLang $toLang $sourceFile
+	else
+		echo "已指定对比文件，将翻译差异部分字符串，参数如下: "
+		echo "源 文 件: $sourceFile"
+		echo "对比文件: $compareFile"
+		echo "源文件语言: $fromLang"
+		echo "翻译后语言: $toLang"
+		#python3 $savePath/translate.py $fromLang $toLang $sourceFile $compareFile"		
+	fi
+	# TODO 支持相对路径
+	# python3 $savePath/translate.py
+}
+
+main "$@"
