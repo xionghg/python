@@ -10,7 +10,13 @@
 #
 # ======================================================================
 
-import os, platform, time, shutil, logging, tempfile, re
+import logging
+import os
+import platform
+import re
+import shutil
+import tempfile
+import time
 
 # 改成你想同步的模块信息
 modules = {
@@ -66,13 +72,12 @@ def check_environment():
         # logger.error(status)
         pass
 
-    platformName = platform.system()
-    if platformName not in ['Windows', 'Linux']:
-        logger.error('Unsupported platform "%s", exiting...' % platformName)
+    platform_name = platform.system()
+    if platform_name not in ['Windows', 'Linux']:
+        logger.error('Unsupported platform "%s", exiting...' % platform_name)
         exit(1)
     else:
-        logger.info('platform is: ' + platformName)
-
+        logger.info('platform is: ' + platform_name)
     check_git_status()
 
 
@@ -89,9 +94,8 @@ def find_git_dir():
 
 
 def compare_version(appname, file, version):
-    """
-    return -1, 0, 1 presents older, the same, newer
-    """
+    """return -1, 0, 1 presents older, the same, newer"""
+
     def getStatus(num):
         if num > 0:
             return 'newer'
@@ -111,12 +115,12 @@ def compare_version(appname, file, version):
                     cv = m.group('ver')
                     di = len(cv) - len(version)
                     if di == 0:
-                        diffs = [(ord(cur) - ord(wan)) for cur,wan in zip(cv, version)]
+                        diffs = [(ord(cur) - ord(wan)) for cur, wan in zip(cv, version)]
                         if diffs.count(0) != len(version):
                             di = list(filter(lambda x: x != 0, diffs))[0]
                             di = 1 if di > 0 else -1
                     logger.debug('config=%s specified=%s this=%s result is %s' %
-                        (m.group('config'),version, cv, getStatus(di)))
+                                 (m.group('config'), version, cv, getStatus(di)))
     return di
 
 
@@ -231,4 +235,3 @@ if __name__ == '__main__':
     time.sleep(5)
     logger.info('Cleanup: delete temp directory.')
     shutil.rmtree(tempbasedir)
-
