@@ -1,15 +1,15 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 
-import os,sys,time,logging
+import os, sys, time, logging
 
 # 下列时间单位均为秒
 # 执行时间
-exec_time = 15 * 60 * 60   # 10 hours, 可改成60s供测试该脚本
+exec_time = 15 * 60 * 60  # 10 hours, 可改成60s供测试该脚本
 # 记录内存间隔时间，exec_time/exec_interval + 1 即为记录内存次数
-exec_interval = 10         # 10 s
+exec_interval = 10  # 10 s
 # 导出hprof文件间隔
-dump_interval =  60 * 60   # 1 hour, 可改成30s供测试该脚本
+dump_interval = 60 * 60  # 1 hour, 可改成30s供测试该脚本
 
 time_passed = 0
 # 打印提示间隔次数，以查看当前进度
@@ -81,13 +81,13 @@ def record_memory():
     else:
         memfile = os.path.join(OUTPUT_DIR, 'meminfo.txt')
         command = command1 = 'adb shell dumpsys meminfo ' + packageName + \
-            ' | grep "Dalvik Heap" -A 14 -B 4 | grep -i "Private\|Total\|--" > ' + memfile
+                             ' | grep "Dalvik Heap" -A 14 -B 4 | grep -i "Private\|Total\|--" > ' + memfile
         commandOther = 'adb shell dumpsys meminfo ' + packageName + ' | grep TOTAL -m 1 >> ' + memfile
-    
+
     exec_count = exec_time // exec_interval + 1
     logger.info("开始记录内存信息，待记录次数：" + str(exec_count))
     for i in range(exec_count):
-        os.popen(command)   #运行命令
+        os.popen(command)  # 运行命令
         # 执行初始命令后切换为后续命令
         if i == 0:
             command = commandOther
@@ -100,21 +100,21 @@ def record_memory():
             dumpheap(str(time_passed // dump_interval))
 
         time_passed += exec_interval
-        time.sleep(exec_interval)   #休息n秒，再进入下一个循环，也就是每隔n秒打印一次procrank的信息
+        time.sleep(exec_interval)  # 休息n秒，再进入下一个循环，也就是每隔n秒打印一次procrank的信息
 
-    logger.info("记录内存信息结束")    #运行完毕的标志
+    logger.info("记录内存信息结束")  # 运行完毕的标志
 
 
 def dumpheap(name):
     command = "adb shell am dumpheap " + packageName + " /data/local/tmp/hprofs/"
-    command += "count"+ name + ".hprof"
+    command += "count" + name + ".hprof"
     os.popen(command)
 
 
 def stop_monkey():
     # adb shell kill -9 `adb shell ps | grep com.android.commands.monkey | awk '{print $2}'`
     pid = os.popen("adb shell ps | grep monkey | awk '{print $2}'").read()
-    pid = pid.replace("\n","")
+    pid = pid.replace("\n", "")
     logger.info("monkey pid is: " + pid + ", kill it")
     os.system("adb shell kill " + pid)
 
@@ -136,7 +136,7 @@ def check_env():
     else:
         bulid_type = "user"
         logger.info("当前rom版本: user")
-        package_flags = os.popen("adb shell dumpsys package " + packageName +" | grep pkgFlags=").read()
+        package_flags = os.popen("adb shell dumpsys package " + packageName + " | grep pkgFlags=").read()
         if "DEBUGGABLE" not in package_flags:
             logger.info("当前为user版本且应用没有设置android:debuggable=\"true\", 无法导出内存信息, 请确认环境。")
             sys.exit(-1)
